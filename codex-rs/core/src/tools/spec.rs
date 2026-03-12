@@ -21,6 +21,9 @@ use crate::tools::handlers::multi_agents::MAX_WAIT_TIMEOUT_MS;
 use crate::tools::handlers::multi_agents::MIN_WAIT_TIMEOUT_MS;
 use crate::tools::handlers::request_permissions_tool_description;
 use crate::tools::handlers::request_user_input_tool_description;
+use crate::tools::handlers::LcmDescribeHandler;
+use crate::tools::handlers::LcmExpandHandler;
+use crate::tools::handlers::LcmGrepHandler;
 use crate::tools::registry::ToolRegistryBuilder;
 use crate::tools::registry::tool_handler_key;
 use codex_protocol::config_types::WebSearchConfig;
@@ -1407,6 +1410,191 @@ fn create_grep_files_tool() -> ToolSpec {
     })
 }
 
+fn create_lcm_grep_tool() -> ToolSpec {
+    let properties = BTreeMap::from([
+        (
+            "query".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "Search query. Interpreted as regex with mode=regex, or as text with mode=full_text."
+                        .to_string(),
+                ),
+            },
+        ),
+        (
+            "mode".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "regex or full_text search mode. Default is regex.".to_string(),
+                ),
+            },
+        ),
+        (
+            "scope".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "messages, summaries, or both. Default is both.".to_string(),
+                ),
+            },
+        ),
+        (
+            "thread_id".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "Thread id to search. Defaults to the current thread when omitted."
+                        .to_string(),
+                ),
+            },
+        ),
+        (
+            "since".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "Only return matches created at or after this RFC3339 timestamp."
+                        .to_string(),
+                ),
+            },
+        ),
+        (
+            "before".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "Only return matches created before this RFC3339 timestamp."
+                        .to_string(),
+                ),
+            },
+        ),
+        (
+            "limit".to_string(),
+            JsonSchema::Number {
+                description: Some("Maximum number of matches per scope (default 50, max 200).".to_string()),
+            },
+        ),
+    ]);
+
+    ToolSpec::Function(ResponsesApiTool {
+        name: "lcm_grep".to_string(),
+        description: "Search LCM messages and summaries by query.".to_string(),
+        strict: false,
+        defer_loading: None,
+        parameters: JsonSchema::Object {
+            properties,
+            required: Some(vec!["query".to_string()]),
+            additional_properties: Some(false.into()),
+        },
+        output_schema: None,
+    })
+}
+
+fn create_lcm_describe_tool() -> ToolSpec {
+    let properties = BTreeMap::from([
+        (
+            "id".to_string(),
+            JsonSchema::String {
+                description: Some("ID of an LCM item to describe (sum_ or file_ prefix).".to_string()),
+            },
+        ),
+        (
+            "thread_id".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "Optional thread id to require description within a specific thread."
+                        .to_string(),
+                ),
+            },
+        ),
+        (
+            "token_cap".to_string(),
+            JsonSchema::Number {
+                description: Some("Optional token budget to annotate manifest fit checks for summaries.")
+                    .to_string(),
+            },
+        ),
+    ]);
+
+    ToolSpec::Function(ResponsesApiTool {
+        name: "lcm_describe".to_string(),
+        description:
+            "Look up an LCM summary or stored file by id, including thread metadata and subtree."
+                .to_string(),
+        strict: false,
+        defer_loading: None,
+        parameters: JsonSchema::Object {
+            properties,
+            required: Some(vec!["id".to_string()]),
+            additional_properties: Some(false.into()),
+        },
+        output_schema: None,
+    })
+}
+
+fn create_lcm_expand_tool() -> ToolSpec {
+    let properties = BTreeMap::from([
+        (
+            "summary_ids".to_string(),
+            JsonSchema::Array {
+                items: Box::new(JsonSchema::String { description: None }),
+                description: Some(
+                    "List of summary ids to expand (sum_ prefix). Either this or query is required."
+                        .to_string(),
+                ),
+            },
+        ),
+        (
+            "query".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "Query summaries first using full text matching and expand matches."
+                        .to_string(),
+                ),
+            },
+        ),
+        (
+            "max_depth".to_string(),
+            JsonSchema::Number {
+                description: Some("Maximum expansion depth. Default is 3.".to_string()),
+            },
+        ),
+        (
+            "token_cap".to_string(),
+            JsonSchema::Number {
+                description: Some("Optional token budget for returned expansion material.".to_string()),
+            },
+        ),
+        (
+            "include_messages".to_string(),
+            JsonSchema::Boolean {
+                description: Some(
+                    "Include source messages at expanded leaf summaries when true.".to_string(),
+                ),
+            },
+        ),
+        (
+            "thread_id".to_string(),
+            JsonSchema::String {
+                description: Some(
+                    "Thread id to restrict expansion scope when query is used."
+                        .to_string(),
+                ),
+            },
+        ),
+    ]);
+
+    ToolSpec::Function(ResponsesApiTool {
+        name: "lcm_expand".to_string(),
+        description: "Expand one or more LCM summaries into child summaries and optional leaf messages."
+            .to_string(),
+        strict: false,
+        defer_loading: None,
+        parameters: JsonSchema::Object {
+            properties,
+            required: None,
+            additional_properties: Some(false.into()),
+        },
+        output_schema: None,
+    })
+}
+
 fn create_tool_search_tool(app_tools: &HashMap<String, ToolInfo>) -> ToolSpec {
     let properties = BTreeMap::from([
         (
@@ -2094,6 +2282,9 @@ pub(crate) fn build_specs(
     use crate::tools::handlers::CodeModeHandler;
     use crate::tools::handlers::DynamicToolHandler;
     use crate::tools::handlers::GrepFilesHandler;
+    use crate::tools::handlers::LcmDescribeHandler;
+    use crate::tools::handlers::LcmExpandHandler;
+    use crate::tools::handlers::LcmGrepHandler;
     use crate::tools::handlers::JsReplHandler;
     use crate::tools::handlers::JsReplResetHandler;
     use crate::tools::handlers::ListDirHandler;
@@ -2367,6 +2558,48 @@ pub(crate) fn build_specs(
             config.code_mode_enabled,
         );
         builder.register_handler("list_dir", list_dir_handler);
+    }
+
+    if config
+        .experimental_supported_tools
+        .contains(&"lcm_grep".to_string())
+    {
+        let lcm_grep_handler = Arc::new(LcmGrepHandler);
+        push_tool_spec(
+            &mut builder,
+            create_lcm_grep_tool(),
+            true,
+            config.code_mode_enabled,
+        );
+        builder.register_handler("lcm_grep", lcm_grep_handler);
+    }
+
+    if config
+        .experimental_supported_tools
+        .contains(&"lcm_describe".to_string())
+    {
+        let lcm_describe_handler = Arc::new(LcmDescribeHandler);
+        push_tool_spec(
+            &mut builder,
+            create_lcm_describe_tool(),
+            true,
+            config.code_mode_enabled,
+        );
+        builder.register_handler("lcm_describe", lcm_describe_handler);
+    }
+
+    if config
+        .experimental_supported_tools
+        .contains(&"lcm_expand".to_string())
+    {
+        let lcm_expand_handler = Arc::new(LcmExpandHandler);
+        push_tool_spec(
+            &mut builder,
+            create_lcm_expand_tool(),
+            true,
+            config.code_mode_enabled,
+        );
+        builder.register_handler("lcm_expand", lcm_expand_handler);
     }
 
     if config
@@ -3857,6 +4090,9 @@ mod tests {
         assert!(find_tool(&tools, "grep_files").supports_parallel_tool_calls);
         assert!(find_tool(&tools, "list_dir").supports_parallel_tool_calls);
         assert!(find_tool(&tools, "read_file").supports_parallel_tool_calls);
+        assert!(find_tool(&tools, "lcm_grep").supports_parallel_tool_calls);
+        assert!(find_tool(&tools, "lcm_describe").supports_parallel_tool_calls);
+        assert!(find_tool(&tools, "lcm_expand").supports_parallel_tool_calls);
     }
 
     #[test]
@@ -3868,6 +4104,9 @@ mod tests {
             "read_file".to_string(),
             "grep_files".to_string(),
             "list_dir".to_string(),
+            "lcm_grep".to_string(),
+            "lcm_describe".to_string(),
+            "lcm_expand".to_string(),
         ];
         let features = Features::with_defaults();
         let available_models = Vec::new();
@@ -3896,6 +4135,21 @@ mod tests {
                 .any(|tool| tool_name(&tool.spec) == "grep_files")
         );
         assert!(tools.iter().any(|tool| tool_name(&tool.spec) == "list_dir"));
+        assert!(
+            tools
+                .iter()
+                .any(|tool| tool_name(&tool.spec) == "lcm_grep")
+        );
+        assert!(
+            tools
+                .iter()
+                .any(|tool| tool_name(&tool.spec) == "lcm_describe")
+        );
+        assert!(
+            tools
+                .iter()
+                .any(|tool| tool_name(&tool.spec) == "lcm_expand")
+        );
     }
 
     #[test]
