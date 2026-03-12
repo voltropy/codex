@@ -45,6 +45,7 @@ pub mod git_info;
 mod guardian;
 pub mod instructions;
 pub mod landlock;
+mod lcm;
 pub mod mcp;
 mod mcp_connection_manager;
 pub mod models_manager;

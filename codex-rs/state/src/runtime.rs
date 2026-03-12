@@ -51,6 +51,7 @@ use tracing::warn;
 
 mod agent_jobs;
 mod backfill;
+mod lcm;
 mod logs;
 mod memories;
 #[cfg(test)]

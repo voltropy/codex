@@ -3998,10 +3998,6 @@ impl ChatWidget {
                 const INIT_PROMPT: &str = include_str!("../prompt_for_init_command.md");
                 self.submit_user_message(INIT_PROMPT.to_string().into());
             }
-            SlashCommand::Compact => {
-                self.clear_token_usage();
-                self.app_event_tx.send(AppEvent::CodexOp(Op::Compact));
-            }
             SlashCommand::Review => {
                 self.open_review_popup();
             }
