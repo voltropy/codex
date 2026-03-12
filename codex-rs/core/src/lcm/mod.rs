@@ -15,6 +15,15 @@ pub(crate) use ingest::ingest_lcm_items;
 pub(crate) use store::LcmStore;
 pub(crate) use store::StateDbLcmStore;
 pub(crate) use summarize::build_lcm_summarize_fn;
+pub(crate) use retrieval::DescribeItem;
+pub(crate) use retrieval::DescribeResult;
+pub(crate) use retrieval::GrepResult;
+pub(crate) use retrieval::ExpandInput;
+pub(crate) use retrieval::ExpandResult;
+pub(crate) use retrieval::GrepInput;
+pub(crate) use retrieval::GrepMode;
+pub(crate) use retrieval::GrepScope;
+pub(crate) use retrieval::RetrievalEngine;
 
 use crate::codex::Session;
 use crate::codex::TurnContext;

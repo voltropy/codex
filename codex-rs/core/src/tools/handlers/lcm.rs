@@ -1,17 +1,14 @@
 use async_trait::async_trait;
 use chrono::DateTime;
 use chrono::Utc;
+use codex_state::LcmSummaryKind;
 use serde::Deserialize;
 
 use crate::function_tool::FunctionCallError;
-use crate::lcm::DescribeItem;
-use crate::lcm::ExpandInput;
-use crate::lcm::GrepInput;
-use crate::lcm::GrepMode;
-use crate::lcm::GrepScope;
-use crate::lcm::RetrievalEngine;
-use crate::lcm::StateDbLcmStore;
-use crate::lcm::format_timestamp;
+use crate::lcm::{
+    DescribeItem, DescribeResult, ExpandInput, ExpandResult, GrepInput, GrepMode, GrepResult, GrepScope,
+    RetrievalEngine, StateDbLcmStore, format_timestamp,
+};
 use crate::tools::context::FunctionToolOutput;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
@@ -153,6 +150,13 @@ fn format_message_id(message_id: i64) -> String {
     format!("msg_{message_id}")
 }
 
+fn format_summary_kind(value: LcmSummaryKind) -> &'static str {
+    match value {
+        LcmSummaryKind::Leaf => "leaf",
+        LcmSummaryKind::Condensed => "condensed",
+    }
+}
+
 fn validate_id_prefix<'a>(value: &'a str, prefix: &str) -> Result<&'a str, FunctionCallError> {
     if value.starts_with(prefix) {
         Ok(value)
@@ -227,7 +231,7 @@ impl ToolHandler for LcmGrepHandler {
 
         let conversation_id = session.conversation_id.to_string();
         let thread_id = resolve_thread_id(&conversation_id, args.thread_id);
-        let result = retrieval
+        let result: GrepResult = retrieval
             .grep(GrepInput {
                 query,
                 mode: mode.into(),
@@ -268,7 +272,7 @@ impl ToolHandler for LcmGrepHandler {
                 output.push(format!(
                     "- {} kind={} time={} snippet={}",
                     entry.summary_id,
-                    entry.kind.as_str(),
+                    format_summary_kind(entry.kind),
                     format_timestamp(entry.created_at),
                     entry.snippet,
                 ));
@@ -327,7 +331,7 @@ impl ToolHandler for LcmDescribeHandler {
         let store = StateDbLcmStore::new(state_db);
         let retrieval = RetrievalEngine::new(&store);
 
-        let describe = retrieval
+        let describe: Option<DescribeResult> = retrieval
             .describe(&id)
             .await
             .map_err(|err| {
@@ -353,7 +357,7 @@ impl ToolHandler for LcmDescribeHandler {
             }
         }
 
-        let mut output = Vec::new();
+                let mut output = Vec::new();
         let token_cap = parse_token_cap(args.token_cap)?;
         match describe.item {
             DescribeItem::Summary(summary) => {
@@ -361,7 +365,7 @@ impl ToolHandler for LcmDescribeHandler {
                 output.push(format!(
                     "thread={} kind={} depth={} tokens={} descendants={} desc_tokens={} source_tokens={}",
                     summary.thread_id,
-                    summary.kind.as_str(),
+                    format_summary_kind(summary.kind),
                     summary.depth,
                     summary.token_count,
                     summary.descendant_count,
@@ -394,7 +398,7 @@ impl ToolHandler for LcmDescribeHandler {
                         summary
                             .message_ids
                             .iter()
-                            .map(format_message_id)
+                            .map(|message_id| format_message_id(*message_id))
                             .collect::<Vec<_>>()
                             .join(", ")
                     ));
@@ -412,7 +416,7 @@ impl ToolHandler for LcmDescribeHandler {
                         output.push(format!(
                             "- {} kind={} token={}/{} depth={} desc_count={} child_count={} path={}",
                             node.summary_id,
-                            node.kind.as_str(),
+                            format_summary_kind(node.kind),
                             summaries_only,
                             with_messages,
                             node.depth,
@@ -441,7 +445,7 @@ impl ToolHandler for LcmDescribeHandler {
                     file.file_name.unwrap_or_else(|| "(unknown)".to_string()),
                     file.mime_type.unwrap_or_else(|| "(unknown)".to_string()),
                     file.byte_size
-                        .map(|value| value.to_string())
+                        .map(|value: i64| value.to_string())
                         .unwrap_or_else(|| "-".to_string())
                 ));
                 output.push(format!("storage_uri={} ", file.storage_uri));
@@ -511,14 +515,14 @@ impl ToolHandler for LcmExpandHandler {
 
         let token_cap = parse_token_cap(args.token_cap)?;
 
-        let summary_ids = if let Some(query) = args.query {
+        let summary_ids: Vec<String> = if let Some(query) = args.query {
             let query = query.trim().to_string();
             if query.is_empty() {
                 return Err(FunctionCallError::RespondToModel(
                     "query must not be empty".to_string(),
                 ));
             }
-            let grep = retrieval
+            let grep: GrepResult = retrieval
                 .grep(GrepInput {
                     query,
                     mode: GrepMode::FullText,
@@ -533,7 +537,7 @@ impl ToolHandler for LcmExpandHandler {
                     FunctionCallError::RespondToModel(format!("LCM expand grep failed: {err}"))
                 })?;
 
-            let ids = grep
+            let ids: Vec<String> = grep
                 .summaries
                 .into_iter()
                 .map(|entry| entry.summary_id)
@@ -564,7 +568,7 @@ impl ToolHandler for LcmExpandHandler {
 
         for summary_id in summary_ids {
             validate_id_prefix(&summary_id, "sum_")?;
-            let result = retrieval
+            let result: ExpandResult = retrieval
                 .expand(ExpandInput {
                     summary_id: summary_id.clone(),
                     depth,
@@ -583,13 +587,13 @@ impl ToolHandler for LcmExpandHandler {
                 result.truncated
             ));
             for child in result.children {
-                output.push(format!(
-                    "- child {} kind={} tokens={} content={}",
-                    child.summary_id,
-                    child.kind.as_str(),
-                    child.token_count,
-                    child.content
-                ));
+                    output.push(format!(
+                        "- child {} kind={} tokens={} content={}",
+                        child.summary_id,
+                        format_summary_kind(child.kind),
+                        child.token_count,
+                        child.content
+                    ));
             }
             if include_messages {
                 for message in result.messages {

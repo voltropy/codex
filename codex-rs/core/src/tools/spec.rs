@@ -1506,8 +1506,7 @@ fn create_lcm_describe_tool() -> ToolSpec {
         (
             "token_cap".to_string(),
             JsonSchema::Number {
-                description: Some("Optional token budget to annotate manifest fit checks for summaries.")
-                    .to_string(),
+                description: Some("Optional token budget to annotate manifest fit checks for summaries.".to_string()),
             },
         ),
     ]);
