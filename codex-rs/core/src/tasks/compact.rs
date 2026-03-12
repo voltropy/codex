@@ -35,7 +35,12 @@ impl SessionTask for CompactTask {
                 .services
                 .session_telemetry
                 .counter("codex.task.compact", 1, &[("type", "lcm")]);
-        let _ = crate::lcm::run_maintenance(&session, &ctx, true).await;
+        if crate::lcm::run_maintenance(&session, &ctx, true)
+            .await
+            .is_ok()
+        {
+            crate::lcm::emit_context_compaction_item(&session, &ctx).await;
+        }
         None
     }
 }

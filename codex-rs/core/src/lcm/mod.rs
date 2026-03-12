@@ -24,6 +24,8 @@ use crate::protocol::ContextCompactedEvent;
 use crate::protocol::EventMsg;
 use chrono::DateTime;
 use chrono::Utc;
+use codex_protocol::items::ContextCompactionItem;
+use codex_protocol::items::TurnItem;
 use codex_protocol::models::ResponseItem;
 use once_cell::sync::Lazy;
 use regex_lite::Regex;
@@ -103,7 +105,11 @@ pub(crate) async fn run_maintenance(
     };
     let thread_id = sess.conversation_id.to_string();
     let config = CompactionConfig::default();
-    let token_budget = turn_context.model_context_window().unwrap_or(i64::MAX);
+    let token_budget = turn_context
+        .model_info
+        .auto_compact_token_limit()
+        .or(turn_context.model_context_window())
+        .unwrap_or(i64::MAX);
     let existing_context_items = store
         .get_context_items(&thread_id)
         .await
@@ -192,6 +198,12 @@ pub(crate) async fn run_maintenance(
         .await;
     }
     Ok(result.action_taken)
+}
+
+pub(crate) async fn emit_context_compaction_item(sess: &Session, turn_context: &TurnContext) {
+    let item = TurnItem::ContextCompaction(ContextCompactionItem::new());
+    sess.emit_turn_item_started(turn_context, &item).await;
+    sess.emit_turn_item_completed(turn_context, item).await;
 }
 
 fn map_lcm_err(err: anyhow::Error) -> CodexErr {

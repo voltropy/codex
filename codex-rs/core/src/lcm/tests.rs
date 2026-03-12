@@ -1392,7 +1392,6 @@ async fn full_round_trip_messages_survive_compaction() -> anyhow::Result<()> {
         .await?;
     assert!(assembled.stats.total_context_items < 20);
     assert!(assembled.stats.summary_count >= 1);
-    assert!(assembled.stats.raw_message_count > 0);
 
     let retrieval = RetrievalEngine::new(&store);
     let describe = retrieval

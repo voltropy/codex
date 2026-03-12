@@ -223,7 +223,7 @@ impl<'a> CompactionEngine<'a> {
             });
         }
 
-        let leaf_chunk = self.select_oldest_leaf_chunk(thread_id).await?;
+        let leaf_chunk = self.select_oldest_leaf_chunk(thread_id, true).await?;
         if leaf_chunk.items.is_empty() {
             return Ok(CompactionResult {
                 action_taken: false,
@@ -354,6 +354,7 @@ impl<'a> CompactionEngine<'a> {
             });
         }
 
+        let protect_fresh_tail = false;
         let mut action_taken = false;
         let mut condensed = false;
         let mut created_summary_id = None;
@@ -362,7 +363,9 @@ impl<'a> CompactionEngine<'a> {
         let mut previous_tokens = tokens_before;
 
         loop {
-            let leaf_chunk = self.select_oldest_leaf_chunk(thread_id).await?;
+            let leaf_chunk = self
+                .select_oldest_leaf_chunk(thread_id, protect_fresh_tail)
+                .await?;
             if leaf_chunk.items.is_empty() {
                 break;
             }
@@ -400,7 +403,11 @@ impl<'a> CompactionEngine<'a> {
 
         loop {
             let Some(candidate) = self
-                .select_shallowest_condensation_candidate(thread_id, hard_trigger)
+                .select_shallowest_condensation_candidate(
+                    thread_id,
+                    hard_trigger,
+                    protect_fresh_tail,
+                )
                 .await?
             else {
                 break;
@@ -557,9 +564,14 @@ impl<'a> CompactionEngine<'a> {
     async fn select_oldest_leaf_chunk(
         &self,
         thread_id: &str,
+        protect_fresh_tail: bool,
     ) -> anyhow::Result<LeafChunkSelection> {
         let context_items = self.store.get_context_items(thread_id).await?;
-        let fresh_tail_ordinal = self.resolve_fresh_tail_ordinal(&context_items);
+        let fresh_tail_ordinal = if protect_fresh_tail {
+            self.resolve_fresh_tail_ordinal(&context_items)
+        } else {
+            i64::MAX
+        };
         let threshold = self.resolve_leaf_chunk_tokens();
 
         let mut raw_tokens_outside_tail = 0i64;
@@ -706,9 +718,14 @@ impl<'a> CompactionEngine<'a> {
         &self,
         thread_id: &str,
         hard_trigger: bool,
+        protect_fresh_tail: bool,
     ) -> anyhow::Result<Option<CondensedPhaseCandidate>> {
         let context_items = self.store.get_context_items(thread_id).await?;
-        let fresh_tail_ordinal = self.resolve_fresh_tail_ordinal(&context_items);
+        let fresh_tail_ordinal = if protect_fresh_tail {
+            self.resolve_fresh_tail_ordinal(&context_items)
+        } else {
+            i64::MAX
+        };
         let min_chunk_tokens = self.resolve_condensed_min_chunk_tokens();
         let depth_levels = self
             .store

@@ -5783,7 +5783,9 @@ async fn run_pre_sampling_compact(
     sess: &Arc<Session>,
     turn_context: &Arc<TurnContext>,
 ) -> CodexResult<()> {
-    let _ = crate::lcm::run_maintenance(sess, turn_context, false).await?;
+    if crate::lcm::run_maintenance(sess, turn_context, false).await? {
+        crate::lcm::emit_context_compaction_item(sess, turn_context).await;
+    }
     Ok(())
 }
 
@@ -5808,7 +5810,9 @@ async fn run_auto_compact(
     initial_context_injection: InitialContextInjection,
 ) -> CodexResult<()> {
     let _ = initial_context_injection;
-    let _ = crate::lcm::run_maintenance(sess, turn_context, true).await?;
+    if crate::lcm::run_maintenance(sess, turn_context, true).await? {
+        crate::lcm::emit_context_compaction_item(sess, turn_context).await;
+    }
     Ok(())
 }
 

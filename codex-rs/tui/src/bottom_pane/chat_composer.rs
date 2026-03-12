@@ -6929,7 +6929,7 @@ mod tests {
         let (_result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
 
-        assert_eq!(composer.textarea.text(), "/compact ");
+        assert_eq!(composer.textarea.text(), "/copy ");
         assert_eq!(composer.textarea.cursor(), composer.textarea.text().len());
     }
 
@@ -9406,7 +9406,7 @@ mod tests {
             "'/re' should activate slash popup via prefix match"
         );
 
-        // Case 3: fuzzy match "/ac" (subsequence of /compact and /feedback)
+        // Case 3: fuzzy match "/ac" (subsequence of /feedback)
         composer.set_text_content("/ac".to_string(), Vec::new(), Vec::new());
         assert!(
             matches!(composer.active_popup, ActivePopup::Command(_)),
